@@ -48,56 +48,18 @@ def smile_to_graph(smile):
         
     return c_size, features, edge_index
 
-def seq_cat(prot):
+'''def seq_cat(prot):
     x = np.zeros(max_seq_len)
     for i, ch in enumerate(prot[:max_seq_len]): 
         x[i] = seq_dict[ch]
-    return x  
+    return x  '''
 
 #new processor for protein
 def _3d_prot(key,dataset):
-  #print(key,' ',dataset)
-  '''if key not in _3d_proteins[dataset]:
-        # thử thay thế 'KinDom' bằng 'Kin.Dom' nếu không thấy key
-    alt_key = key.replace('KinDom', 'Kin.Dom')
-    if alt_key in _3d_proteins[dataset]:
-      key = alt_key
-    elif key == 'GCN2(KinDom2S808G)':
-      key = 'GCN2(Kin.Dom.2,S808G)'
-    elif key == 'PFPK5(Pfalciparum)':
-      key = 'PFPK5(P.falciparum)'
-    elif key == 'KIT(V559D-V654A)':
-      key = 'KIT(V559D,T670I)'
-    elif key == 'EGFR(L747E749del)':
-      key = 'EGFR(L747-E749del, A750P)'
-    elif key == 'PFCDPK1(Pfalciparum)':
-      key = 'PFCDPK1(P.falciparum)'
-    elif key == 'KIT(V559D-T670I)':
-      key = 'KIT(V559D,T670I)'
-    elif key == 'EGFR(E746A750del)':
-      key = 'EGFR(E746-A750del)'
-    elif key == 'EGFR(L858RT790M)':
-      key = 'EGFR(L858R,T790M)'
-    elif key == 'ABL1(E255K)':
-      key = 'ABL1(E255K)p'
-    elif key =='ABL1(M351T)':
-      key = 'ABL1(M351T)p'
-    elif key == 'PKNB(Mtuberculosis)':
-      key = 'PKNB(M.tuberculosis)'
-    elif key == 'EGFR(S752I759del)':
-      key = 'EGFR(S752-I759del)'
-    elif key == 'ABL1(Y253F)':
-      key = 'ABL1(Y253F)p'
-    elif key == 'EGFR(L747T751del)':  
-      key = 'EGFR(L747-T751del,Sins)'
-    elif key == 'EGFR(L747S752del)':  
-      key = 'EGFR(L747-S752del, P753S)'
-    else:
-      raise KeyError(f"{key} not found in _3d_proteins[{dataset}]")'''
-  node_feature = _3d_proteins[dataset][key][0]
-  edge_index = _3d_proteins[dataset][key][1]
-  edge_feature = _3d_proteins[dataset][key][2]
-  return node_feature, edge_index, edge_feature
+    node_feature = _3d_proteins[dataset][key][0]
+    edge_index = _3d_proteins[dataset][key][1]
+    edge_feature = _3d_proteins[dataset][key][2]
+    return node_feature, edge_index, edge_feature
 
 
 # from DeepDTA data
