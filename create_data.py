@@ -62,7 +62,7 @@ def _3d_prot(key,dataset):
     return node_feature, edge_index, edge_feature
 
 
-# from DeepDTA data
+
 all_prots = []
 datasets = ['kiba','davis']
 for dataset in datasets:
@@ -107,21 +107,14 @@ for dataset in datasets:
     
     
 seq_voc = "ABCDEFGHIKLMNOPQRSTUVWXYZ"
-#seq_dict = {v:(i+1) for i,v in enumerate(seq_voc)}
-#seq_dict_len = len(seq_dict)
+seq_dict = {v:(i+1) for i,v in enumerate(seq_voc)}
+seq_dict_len = len(seq_dict)
 max_seq_len = 1000
 _3d_proteins = {}
 for dataset in datasets:
   fpath = 'data/' + dataset + '/'
   _3d_proteins[dataset] = pickle.load(open(fpath+"protein_to_graph.pkl", 'rb')) #3d protein từ 3dProt
-#_3d_proteins['davis']['ABL1(Q252H)'] = _3d_proteins['davis'].pop('ABL1(Q252H)-nonphosphorylated')
-#_3d_proteins['davis']['ABL1(Q252H)p'] = _3d_proteins['davis'].pop('ABL1(Q252H)-phosphorylated')
-# Bạn muốn đổi key 'ABL1(Q252H)-phosphorylated' thành 'ABL1(Q252H)'
-d = _3d_proteins['davis']
-for key in list(d.keys()):   
-    new_key = key.replace('-nonphosphorylated', '').replace('-phosphorylated', 'p')
-    if new_key != key:
-        d[new_key] = d.pop(key)
+
 
 compound_iso_smiles = []
 for dt_name in ['kiba','davis']:
@@ -135,7 +128,7 @@ for smile in compound_iso_smiles:
     g = smile_to_graph(smile)
     smile_graph[smile] = g
 
-datasets = ['davis']#,'kiba']
+datasets = ['davis','kiba']
 # convert to PyTorch data format
 
 for dataset in datasets:
@@ -155,7 +148,6 @@ for dataset in datasets:
         XT = [_3d_prot(t,dataset) for t in test_prots]
         test_drugs, test_prots,  test_Y = np.asarray(test_drugs), XT, np.asarray(test_Y)
 
-        # make data PyTorch Geometric ready
         print('preparing ', dataset + '_train.pt in pytorch format!')
         train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='drug', xd=train_drugs, xt=train_prots, y=train_Y,smile_graph=smile_graph)
         train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='protein', xd=train_drugs, xt=train_prots, y=train_Y,smile_graph=smile_graph)
