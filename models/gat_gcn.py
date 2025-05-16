@@ -37,9 +37,9 @@ class GAT_GCNNet(torch.nn.Module):
         x_drug, edge_index_drug, batch_drug = data_drug.x, data_drug.edge_index, data_drug.batch
 
         x_drug = F.dropout(x_drug, p=0.2, training=self.training)
-        x_drug = F.elu(self.gcn1(x_drug, edge_index_drug))
+        x_drug = F.elu(self.conv1(x_drug, edge_index_drug))
         x_drug = F.dropout(x_drug, p=0.2, training=self.training)
-        x_drug = self.gcn2(x_drug, edge_index_drug)
+        x_drug = self.conv2(x_drug, edge_index_drug)
         x_drug = self.relu(x_drug)
         x_drug = gmp(x_drug, batch_drug)          
         x_drug = self.fc_g1(x_drug)

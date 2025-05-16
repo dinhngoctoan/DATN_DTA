@@ -52,11 +52,10 @@ class TestbedDataset(InMemoryDataset):
         if not os.path.exists(self.processed_dir):
             os.makedirs(self.processed_dir)
             
-    # Customize the process method to fit the task of drug-target affinity prediction
     # Inputs:
-    # XD - list of SMILES, XT: list of encoded target (categorical or one-hot),
+    # XD - list of SMILES, XT: list of Protein with 3D,
     # Y: list of labels (i.e. affinity)
-    # Return: PyTorch-Geometric format processed data
+
     def process(self, xd, xt, y, smile_graph):
         assert (len(xd) == len(xt) and len(xt) == len(y)), "The three lists must be the same length!"
         data_list = []
@@ -65,7 +64,6 @@ class TestbedDataset(InMemoryDataset):
             for i in range(data_len):
                 print('Converting SMILES to graph: {}/{}'.format(i+1, data_len))
                 smiles = xd[i]
-                #target = xt[i]
                 labels = y[i]
             
             # Convert SMILES to molecular representation using rdkit
@@ -81,10 +79,8 @@ class TestbedDataset(InMemoryDataset):
                 data_list.append(drug_data)
         elif self.type == 'protein':
             for i in range(data_len):
-                print('Converting SMILES to graph: {}/{}'.format(i+1, data_len))
-                #smiles = xd[i]
+                print('Converting Protein to graph: {}/{}'.format(i+1, data_len))
                 target = xt[i]
-                #labels = y[i]
             # Unpack the target tuple
                 target_node_features, target_edge_index, target_edge_features = target
             
@@ -95,10 +91,6 @@ class TestbedDataset(InMemoryDataset):
                 edge_attr=torch.tensor(target_edge_features, dtype=torch.float)
                 )
                 data_list.append(protein_data)
-            # Create label data
-            
-            
-            # Append tuple (drug, protein, y) to list
             
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
