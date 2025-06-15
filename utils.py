@@ -5,12 +5,19 @@ from scipy import stats
 from torch_geometric.data import InMemoryDataset, DataLoader
 from torch_geometric import data as DATA
 import torch
-#from ProtDrugData import DrugProteinData
+from rdkit import Chem
 from torch_geometric.data import Batch
+from re import A
+from typing import Protocol
+import pandas as pd
+import json,pickle
+from collections import OrderedDict
+from rdkit.Chem import MolFromSmiles
+import networkx as nx
 
 class TestbedDataset(InMemoryDataset):
     def __init__(self, root='/tmp', dataset='davis',type=None, 
-                 xd=None, xt=None, y=None, transform=None,
+                 xd=None,xd_ecfp = None, xt=None, xt_seq=None, y=None, transform=None,
                  pre_transform=None,smile_graph=None):
 
         #root is required for save preprocessed data, default is '/tmp'
@@ -24,7 +31,7 @@ class TestbedDataset(InMemoryDataset):
             self.data, self.slices = torch.load(self.processed_paths[0],weights_only=False)
         else:
             print('Pre-processed data {} not found, doing pre-processing...'.format(self.processed_paths[0]))
-            self.process(xd, xt, y, smile_graph)
+            self.process(xd, xd_ecfp, xt, xt_seq, y, smile_graph)
             self.data, self.slices = torch.load(self.processed_paths[0],weights_only=False)
             print('Data processed and loaded successfully')
 
@@ -54,18 +61,23 @@ class TestbedDataset(InMemoryDataset):
             
     # Inputs:
     # XD - list of SMILES, XT: list of Protein with 3D,
+    # XT_seq: list of protein sequences
     # Y: list of labels (i.e. affinity)
 
-    def process(self, xd, xt, y, smile_graph):
-        assert (len(xd) == len(xt) and len(xt) == len(y)), "The three lists must be the same length!"
+    def process(self, xd, xd_ecfp, xt, xt_seq, y, smile_graph):
+        assert (len(xd) == len(xt) and len(xt) == len(y) and len(xt_seq) == len(y)), "The lists must be the same length!"
         data_list = []
         data_len = len(xd)
         if self.type == 'drug':
             for i in range(data_len):
-                print('Converting SMILES to graph: {}/{}'.format(i+1, data_len))
+                if (i+1)%5000==0:    
+                    print('Converting SMILES to graph: {}/{}'.format(i+1, data_len))
                 smiles = xd[i]
                 labels = y[i]
-            
+                protein_seq = xt_seq[i]
+                if self.dataset == 'kiba' and smiles == 'Cc1cn2c(-c3cn[nH]c3)cnc2c(Nc2cc(CN3CCC(F)(F)C3)ns2)n1.Cl' :
+                    smiles = 'Cc1cn2c(-c3cn[nH]c3)cnc2c(Nc2cc(CN3CCC(F)(F)C3)ns2)n1'
+                ecfp = xd_ecfp[smiles]
             # Convert SMILES to molecular representation using rdkit
                 c_size, features, edge_index = smile_graph[smiles]
             
@@ -73,13 +85,16 @@ class TestbedDataset(InMemoryDataset):
                 drug_data = DATA.Data(
                     x=torch.tensor(features, dtype=torch.float),
                     edge_index=torch.tensor(np.array(edge_index).astype(np.int64), dtype=torch.long).transpose(1, 0),
-                    c_size=torch.tensor([c_size], dtype=torch.long),
+                    #c_size=torch.tensor([c_size], dtype=torch.long),
                     y = torch.tensor([labels], dtype=torch.float)
                 )
+                drug_data.ecfp = torch.tensor([ecfp], dtype = torch.float)
+                drug_data.protein_seq = torch.tensor([protein_seq], dtype=torch.long)
                 data_list.append(drug_data)
         elif self.type == 'protein':
             for i in range(data_len):
-                print('Converting Protein to graph: {}/{}'.format(i+1, data_len))
+                if (i+1)%5000==0:
+                    print('Converting Protein to graph: {}/{}'.format(i+1, data_len))
                 target = xt[i]
             # Unpack the target tuple
                 target_node_features, target_edge_index, target_edge_features = target
@@ -88,7 +103,7 @@ class TestbedDataset(InMemoryDataset):
                 protein_data = DATA.Data(
                 x=torch.tensor(target_node_features, dtype=torch.float),
                 edge_index=torch.tensor(np.array(target_edge_index).astype(np.int64), dtype=torch.long).transpose(1, 0),
-                edge_attr=torch.tensor(target_edge_features, dtype=torch.float)
+                #edge_attr=torch.tensor(target_edge_features, dtype=torch.float)
                 )
                 data_list.append(protein_data)
             

@@ -4,8 +4,12 @@ import sys, os
 from random import shuffle
 import torch
 import torch.nn as nn
-from models.gat_gcn import GAT_GCNNet
-from models.gin_gcn import GIN_GCNNet
+from models.gat import GAT_Model
+from models.gin import GIN_Model
+from models.gat_gcn import GATnGCN_Model
+from models.no1D import no1D_Model
+from models.noMorgan import noMorgan_Model
+from models.graphOnly import graphOnly_Model
 from utils import *
 
 # training function at each epoch
@@ -43,7 +47,7 @@ def predicting(model, device, loader_drug,loader_protein):
 
 
 datasets = [['davis','kiba'][int(sys.argv[1])]] 
-modeling = [GIN_GCNNet, GAT_GCNNet][int(sys.argv[2])]
+modeling = [GIN_Model, GAT_Model, GATnGCN_Model, no1D_Model, noMorgan_Model, graphOnly_Model][int(sys.argv[2])]
 model_st = modeling.__name__
 
 cuda_name = "cuda:0"
@@ -51,11 +55,11 @@ if len(sys.argv)>3:
     cuda_name = "cuda:" + str(int(sys.argv[3])) 
 print('cuda_name:', cuda_name)
 
-TRAIN_BATCH_SIZE = 256
-TEST_BATCH_SIZE = 256
+TRAIN_BATCH_SIZE = 512
+TEST_BATCH_SIZE = 512
 LR = 0.0005
 LOG_INTERVAL = 20
-NUM_EPOCHS = 500
+NUM_EPOCHS = 1000
 
 print('Learning rate: ', LR)
 print('Epochs: ', NUM_EPOCHS)

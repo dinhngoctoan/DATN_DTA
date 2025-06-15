@@ -48,11 +48,15 @@ def smile_to_graph(smile):
         
     return c_size, features, edge_index
 
-'''def seq_cat(prot):
+def seq_cat(prot):
     x = np.zeros(max_seq_len)
     for i, ch in enumerate(prot[:max_seq_len]): 
         x[i] = seq_dict[ch]
-    return x  '''
+    return x  
+
+def newKeySmiles(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    return Chem.MolToSmiles(mol,isomericSmiles=False)
 
 #new processor for protein
 def _3d_prot(key,dataset):
@@ -127,8 +131,15 @@ smile_graph = {}
 for smile in compound_iso_smiles:
     g = smile_to_graph(smile)
     smile_graph[smile] = g
+datasets = ['kiba','davis']
+ligand_to_ecfp = {}
+for dataset in datasets:
+    path = 'data/' + dataset + '/ligand_to_ecfp.pkl'
+    with open(path, 'rb') as f:
+        ligand_to_ecfp[dataset] = pickle.load(f)
+    for smiles in list(ligand_to_ecfp[dataset]):
+        ligand_to_ecfp[dataset][newKeySmiles(smiles)] = ligand_to_ecfp[dataset].pop(smiles)
 
-datasets = ['davis','kiba']
 # convert to PyTorch data format
 
 for dataset in datasets:
@@ -138,23 +149,26 @@ for dataset in datasets:
     if ((not os.path.isfile(processed_data_file_train)) or (not os.path.isfile(processed_data_file_test))):
         df = pd.read_csv('data/' + dataset + '_train.csv')
         #df = df[:10]
+        fpath = 'data/' + dataset + '/'
+        proteins = json.load(open(fpath + "proteins.txt"), object_pairs_hook=OrderedDict)
         train_drugs, train_prots,  train_Y = list(df['compound_iso_smiles']),list(df['target_sequence']),list(df['affinity'])
         #print(train_prots)
         XT = [_3d_prot(t,dataset) for t in train_prots]
-        train_drugs, train_prots,  train_Y = np.asarray(train_drugs), XT, np.asarray(train_Y)
+        XT_seq = [seq_cat(proteins[t]) for t in train_prots]
+        train_drugs, train_prots, train_prots_seq,  train_Y = np.asarray(train_drugs), XT, np.asarray(XT_seq), np.asarray(train_Y)
         df = pd.read_csv('data/' + dataset + '_test.csv')
         #df = df[:10]
         test_drugs, test_prots,  test_Y = list(df['compound_iso_smiles']),list(df['target_sequence']),list(df['affinity'])
         XT = [_3d_prot(t,dataset) for t in test_prots]
-        test_drugs, test_prots,  test_Y = np.asarray(test_drugs), XT, np.asarray(test_Y)
+        XT_seq = [seq_cat(proteins[t]) for t in test_prots]
+        test_drugs, test_prots, test_prots_seq,  test_Y = np.asarray(test_drugs), XT, np.asarray(XT_seq), np.asarray(test_Y)
 
         print('preparing ', dataset + '_train.pt in pytorch format!')
-        train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='drug', xd=train_drugs, xt=train_prots, y=train_Y,smile_graph=smile_graph)
-        train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='protein', xd=train_drugs, xt=train_prots, y=train_Y,smile_graph=smile_graph)
+        train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='drug', xd=train_drugs, xd_ecfp = ligand_to_ecfp[dataset], xt=train_prots,xt_seq = train_prots_seq, y=train_Y,smile_graph=smile_graph)
+        train_data = TestbedDataset(root='data', dataset=dataset+'_train',type='protein', xd=train_drugs, xd_ecfp = ligand_to_ecfp[dataset], xt=train_prots,xt_seq = train_prots_seq, y=train_Y,smile_graph=smile_graph)
         print('preparing ', dataset + '_test.pt in pytorch format!')
-        test_data = TestbedDataset(root='data', dataset=dataset+'_test',type='drug', xd=test_drugs, xt=test_prots, y=test_Y,smile_graph=smile_graph)
-        test_data = TestbedDataset(root='data', dataset=dataset+'_test',type='protein', xd=test_drugs, xt=test_prots, y=test_Y,smile_graph=smile_graph)
+        test_data = TestbedDataset(root='data', dataset=dataset+'_test',type='drug', xd=test_drugs, xd_ecfp = ligand_to_ecfp[dataset], xt=test_prots,xt_seq = test_prots_seq, y=test_Y,smile_graph=smile_graph)
+        test_data = TestbedDataset(root='data', dataset=dataset+'_test',type='protein', xd=test_drugs, xd_ecfp = ligand_to_ecfp[dataset], xt=test_prots,xt_seq = test_prots_seq, y=test_Y,smile_graph=smile_graph)
         print(processed_data_file_train, ' and ', processed_data_file_test, ' have been created')        
     else:
         print(processed_data_file_train, ' and ', processed_data_file_test, ' are already created')
-         

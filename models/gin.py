@@ -7,16 +7,35 @@ from torch_geometric.nn import global_add_pool
 from torch_geometric.nn import global_mean_pool as gap
 from torch_geometric.nn import global_max_pool as gmp
 # GAT  model
-class GATnGCN_Model(torch.nn.Module):
+class GIN_Model(torch.nn.Module):
     def __init__(self, num_features_xd=78, n_output=1, num_features_xt=41,num_features_xt_seq = 25,
                       output_dim=128, dropout=0.2,embed_dim=128,n_filters=32):
-        super(GATnGCN_Model, self).__init__()
+        super(GIN_Model, self).__init__()
         dim = 32
         # drug
-        self.conv1 = GATConv(num_features_xd, num_features_xd, heads=10)
-        self.conv2 = GCNConv(num_features_xd*10, num_features_xd*10)
-        self.fc_g1 = torch.nn.Linear(num_features_xd*10*2, 1500)
-        self.fc_g2 = torch.nn.Linear(1500, output_dim)
+        self.n_output = n_output
+        # convolution layers
+        nn1 = Sequential(Linear(num_features_xd, dim), ReLU(), Linear(dim, dim))
+        self.conv1 = GINConv(nn1)
+        self.bn1 = torch.nn.BatchNorm1d(dim)
+
+        nn2 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv2 = GINConv(nn2)
+        self.bn2 = torch.nn.BatchNorm1d(dim)
+
+        nn3 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv3 = GINConv(nn3)
+        self.bn3 = torch.nn.BatchNorm1d(dim)
+
+        nn4 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv4 = GINConv(nn4)
+        self.bn4 = torch.nn.BatchNorm1d(dim)
+
+        nn5 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv5 = GINConv(nn5)
+        self.bn5 = torch.nn.BatchNorm1d(dim)
+
+        self.fc1_xd = Linear(dim, output_dim)
 
         #ecfp
         self.fc_ecfp = nn.Linear(2048,128)
@@ -56,16 +75,19 @@ class GATnGCN_Model(torch.nn.Module):
         # graph input feed-forward
         x_drug, edge_index_drug, batch_drug = data_drug.x, data_drug.edge_index, data_drug.batch
 
-        x_drug = self.conv1(x_drug, edge_index_drug)
-        x_drug = self.relu(x_drug)
-        x_drug = self.conv2(x_drug, edge_index_drug)
-        x_drug = self.relu(x_drug)
-        # apply global max pooling (gmp) and global mean pooling (gap)
-        x_drug = torch.cat([gmp(x_drug, batch_drug), gap(x_drug, batch_drug)], dim=1)
-        x_drug = self.relu(self.fc_g1(x_drug))
-        x_drug = self.dropout(x_drug)
-        x_drug = self.fc_g2(x_drug)
-
+        x_drug = F.relu(self.conv1(x_drug, edge_index_drug))
+        x_drug = self.bn1(x_drug)
+        x_drug = F.relu(self.conv2(x_drug, edge_index_drug))
+        x_drug = self.bn2(x_drug)
+        x_drug = F.relu(self.conv3(x_drug, edge_index_drug))
+        x_drug = self.bn3(x_drug)
+        x_drug = F.relu(self.conv4(x_drug, edge_index_drug))
+        x_drug = self.bn4(x_drug)
+        x_drug = F.relu(self.conv5(x_drug, edge_index_drug))
+        x_drug = self.bn5(x_drug)
+        x_drug = global_add_pool(x_drug, batch_drug)
+        x_drug = F.relu(self.fc1_xd(x_drug))
+        x_drug = F.dropout(x_drug, p=0.2, training=self.training)
         #ecfp
         x_drug_ecfp = data_drug.ecfp
         x_drug_ecfp = self.fc_ecfp(x_drug_ecfp)
@@ -102,7 +124,7 @@ class GATnGCN_Model(torch.nn.Module):
 
         #cross-attention
         x_drug = x_drug.unsqueeze(0)  
-        x_prots = x_prots.unsqueeze(0) 
+        x_prots = x_prots.unsqueeze(0)  
         
         # Drug to protein attention
         x_drug_attended, _ = self.drug_protein_attention(x_drug, x_prots, x_prots)
@@ -111,7 +133,6 @@ class GATnGCN_Model(torch.nn.Module):
         # Protein to drug attention
         x_prots_attended, _ = self.protein_drug_attention(x_prots, x_drug, x_drug)
         x_prots_attended = x_prots_attended.squeeze(0)  
-        
 
         # concat
         xd = torch.cat((x_drug_attended,x_drug_ecfp),1)
