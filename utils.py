@@ -75,7 +75,7 @@ class TestbedDataset(InMemoryDataset):
                 smiles = xd[i]
                 labels = y[i]
                 protein_seq = xt_seq[i]
-                if self.dataset == 'kiba' and smiles == 'Cc1cn2c(-c3cn[nH]c3)cnc2c(Nc2cc(CN3CCC(F)(F)C3)ns2)n1.Cl' :
+                if 'kiba' in self.dataset and smiles == 'Cc1cn2c(-c3cn[nH]c3)cnc2c(Nc2cc(CN3CCC(F)(F)C3)ns2)n1.Cl' :
                     smiles = 'Cc1cn2c(-c3cn[nH]c3)cnc2c(Nc2cc(CN3CCC(F)(F)C3)ns2)n1'
                 ecfp = xd_ecfp[smiles]
             # Convert SMILES to molecular representation using rdkit
