@@ -48,8 +48,8 @@ The project uses two benchmark datasets:
 
 ### Step 1: Clone the repository
 ```bash
-git clone <repository_url>
-cd <repository_folder>
+git clone https://github.com/dinhngoctoan/DATN_DTA
+cd DATN_DTA
 ```
 
 ### Step 2: Install required libraries
