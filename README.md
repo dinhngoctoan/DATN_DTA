@@ -17,8 +17,8 @@ This project implements a deep learning approach for predicting drug-target bind
 - **gin.py**: A variant that implements the GIN (Graph Isomorphism Network) architecture for the drug graph branch.
 - **gat.py**: A variant that implements the GAT (Graph Attention Network) architecture for the drug graph branch.
 - **graphOnly.py**: Keeps only the graph branches of drug and protein, performing direct cross-attention between these two branches.
-- **noMorgan.py**: Removes the Morgan fingerprint branch, using cross-attention between the drug graph, protein graph, and 1D protein branch.
-- **no1D.py**: Removes the 1D protein branch, performing cross-attention between the protein graph, drug graph, and Morgan fingerprint branch.
+- **noMorgan.py**: Removes the Morgan fingerprint branch, applying cross-attention between the drug graph and the protein graph, as well as between the drug graph and the 1D protein branch.
+- **no1D.py**: Removes the 1D protein branch, applying cross-attention between the protein graph and the Morgan fingerprint (ECFP), as well as between the protein graph and the drug graph.
 
 
 ## Requirements
