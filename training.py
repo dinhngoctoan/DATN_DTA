@@ -11,7 +11,7 @@ from models.no1D import no1D_Model
 from models.noMorgan import noMorgan_Model
 from models.graphOnly import graphOnly_Model
 from utils import *
-
+from torch_geometric import loader
 # training function at each epoch
 def train(model, device, train_loader_drug,train_loader_protein, optimizer, epoch):
     print('Training on {} samples...'.format(len(train_loader_drug.dataset)))
@@ -80,10 +80,10 @@ for dataset in datasets:
         test_data_protein = TestbedDataset(root='data', dataset=dataset+'_test_protein')
         
         # make data PyTorch mini-batch processing ready
-        train_loader_drug = DataLoader(train_data_drug, batch_size=TRAIN_BATCH_SIZE, shuffle=False)
-        test_loader_drug = DataLoader(test_data_drug, batch_size=TEST_BATCH_SIZE, shuffle=False)
-        train_loader_protein = DataLoader(train_data_protein, batch_size=TRAIN_BATCH_SIZE, shuffle=False)
-        test_loader_protein = DataLoader(test_data_protein, batch_size=TEST_BATCH_SIZE, shuffle=False)
+        train_loader_drug = loader.DataLoader(train_data_drug, batch_size=TRAIN_BATCH_SIZE, shuffle=False)
+        test_loader_drug = loader.DataLoader(test_data_drug, batch_size=TEST_BATCH_SIZE, shuffle=False)
+        train_loader_protein = loader.DataLoader(train_data_protein, batch_size=TRAIN_BATCH_SIZE, shuffle=False)
+        test_loader_protein = loader.DataLoader(test_data_protein, batch_size=TEST_BATCH_SIZE, shuffle=False)
 
         # training the model
         device = torch.device(cuda_name if torch.cuda.is_available() else "cpu")
