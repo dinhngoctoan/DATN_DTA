@@ -55,12 +55,12 @@ cd DATN_DTA
 ### Step 2: Install required libraries
 You can use the following commands (for Google Colab or local with pip):
 ```bash
-!pip install rdkit-pypi
-!pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-!pip install torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-!pip install torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-!pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
-!pip install torch-geometric
+pip install rdkit-pypi
+pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
+pip install torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
+pip install torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
+pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
+pip install torch-geometric
 ```
 
 ### Step 3: Prepare the data
