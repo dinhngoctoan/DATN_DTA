@@ -88,8 +88,8 @@ class TestbedDataset(InMemoryDataset):
                     #c_size=torch.tensor([c_size], dtype=torch.long),
                     y = torch.tensor([labels], dtype=torch.float)
                 )
-                drug_data.ecfp = torch.tensor([ecfp], dtype = torch.float)
-                drug_data.protein_seq = torch.tensor([protein_seq], dtype=torch.long)
+                drug_data.ecfp = torch.tensor([ecfp], dtype = torch.float)#reduce memory usage for the profile file
+                drug_data.protein_seq = torch.tensor([protein_seq], dtype=torch.long)#reduce memory usage for the profile file
                 data_list.append(drug_data)
         elif self.type == 'protein':
             for i in range(data_len):
