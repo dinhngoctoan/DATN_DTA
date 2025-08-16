@@ -17,7 +17,7 @@ class GAT_Model(torch.nn.Module):
         self.n_output = n_output
         self.conv1 = GATConv(num_features_xd, num_features_xd, heads=10, dropout=dropout)
         self.conv2 = GATConv(num_features_xd * 10, output_dim, dropout=dropout)
-        self.fc_g1 = nn.Linear(output_dim, 128)
+        self.fc_g1 = nn.Linear(output_dim*2, 128)
 
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
@@ -65,7 +65,7 @@ class GAT_Model(torch.nn.Module):
         x_drug = F.dropout(x_drug, p=0.2, training=self.training)
         x_drug = self.conv2(x_drug, edge_index_drug)
         x_drug = self.relu(x_drug)
-        x_drug = gmp(x_drug, batch_drug)
+        x_drug = torch.cat([gmp(x_drug, batch_drug), gap(x_drug, batch_drug)], dim=1)
         x_drug = self.fc_g1(x_drug)
         x_drug = self.relu(x_drug)
 
