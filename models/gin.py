@@ -35,7 +35,7 @@ class GIN_Model(torch.nn.Module):
         self.conv5 = GINConv(nn5)
         self.bn5 = torch.nn.BatchNorm1d(dim)
 
-        self.fc1_xd = Linear(dim, output_dim)
+        self.fc1_xd = Linear(dim*2, output_dim)
 
         #ecfp
         self.fc_ecfp = nn.Linear(2048,128)
@@ -85,7 +85,7 @@ class GIN_Model(torch.nn.Module):
         x_drug = self.bn4(x_drug)
         x_drug = F.relu(self.conv5(x_drug, edge_index_drug))
         x_drug = self.bn5(x_drug)
-        x_drug = global_add_pool(x_drug, batch_drug)
+        x_drug = torch.cat([gmp(x_drug, batch_drug), gap(x_drug, batch_drug)], dim=1)
         x_drug = F.relu(self.fc1_xd(x_drug))
         x_drug = F.dropout(x_drug, p=0.2, training=self.training)
         #ecfp
