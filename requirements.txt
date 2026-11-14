@@ -1,0 +1,5 @@
+# Install the PyTorch build appropriate for your CUDA runtime first.
+torch>=2.6
+numpy
+torch-geometric
+rdkit

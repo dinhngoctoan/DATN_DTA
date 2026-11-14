@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+outputs/
+# Generated datasets and checkpoints; keep existing tracked raw data unchanged.
+data/four_source*/
+data/davis_embedding_csv/
+*.pt
+*.pth
+*.model
+data.zip

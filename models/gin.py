@@ -2,148 +2,146 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU
-from torch_geometric.nn import GATConv,GCNConv, GINConv
+from torch_geometric.nn import GINConv, GATConv, GCNConv
 from torch_geometric.nn import global_add_pool
 from torch_geometric.nn import global_mean_pool as gap
 from torch_geometric.nn import global_max_pool as gmp
-# GAT  model
+
+# Hybrid ligand GAT/GCN and protein GIN model.
 class GIN_Model(torch.nn.Module):
-    def __init__(self, num_features_xd=78, n_output=1, num_features_xt=41,num_features_xt_seq = 25,
-                      output_dim=128, dropout=0.2,embed_dim=128,n_filters=32):
-        super(GIN_Model, self).__init__()
+    def __init__(self, data_store, num_features_xd=78, n_output=1, num_features_xt=41,
+                      output_dim=128, dropout=0.2, protein_embedding_dim=640):
+        super().__init__()
+        # The store is a plain Python object; state_dict contains only model weights.
+        self.data_store = data_store
+        if output_dim != 128:
+            raise ValueError('Fusion requires output_dim=128')
+
         dim = 32
-        # drug
-        self.n_output = n_output
-        # convolution layers
-        nn1 = Sequential(Linear(num_features_xd, dim), ReLU(), Linear(dim, dim))
-        self.conv1 = GINConv(nn1)
-        self.bn1 = torch.nn.BatchNorm1d(dim)
 
-        nn2 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
-        self.conv2 = GINConv(nn2)
-        self.bn2 = torch.nn.BatchNorm1d(dim)
+        # Ligand graph: GAT 8x64 -> GCN 256, followed by max+mean pooling.
+        self.conv1 = GATConv(num_features_xd, 64, heads=8, concat=True)
+        self.conv2 = GCNConv(512, 256)
 
-        nn3 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
-        self.conv3 = GINConv(nn3)
-        self.bn3 = torch.nn.BatchNorm1d(dim)
 
-        nn4 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
-        self.conv4 = GINConv(nn4)
-        self.bn4 = torch.nn.BatchNorm1d(dim)
+        self.fc_g1 = torch.nn.Linear(512, 256)
+        self.fc_g2 = torch.nn.Linear(256, output_dim)
 
-        nn5 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
-        self.conv5 = GINConv(nn5)
-        self.bn5 = torch.nn.BatchNorm1d(dim)
+        # Replace ECFP with Chemformer ligand embeddings. Pool only in forward.
+        self.fc_drug_embedding = nn.Linear(512, 128)
+        self.bn_drug_embedding = nn.BatchNorm1d(128)
 
-        self.fc1_xd = Linear(dim*2, output_dim)
+        # Protein graph: five GIN layers with 41 input features and separate weights.
+        nn_p1 = Sequential(Linear(num_features_xt, dim), ReLU(), Linear(dim, dim))
+        self.conv_prot1 = GINConv(nn_p1)
+        self.bn_prot1 = nn.BatchNorm1d(dim)
 
-        #ecfp
-        self.fc_ecfp = nn.Linear(2048,128)
-        self.bn_ecfp = nn.BatchNorm1d(128)
-        #3D protein
-        self.conv_prot1 = GCNConv(num_features_xt, num_features_xt)
-        self.conv_prot2 = GCNConv(num_features_xt, 64)
-        self.lin1 = nn.Linear(64,128)
+        nn_p2 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv_prot2 = GINConv(nn_p2)
+        self.bn_prot2 = nn.BatchNorm1d(dim)
 
-        #1D protein
-        self.embedding_xt = nn.Embedding(num_features_xt_seq + 1, embed_dim)
-        self.conv_xt_1 = nn.Conv1d(in_channels=1000, out_channels=n_filters, kernel_size=8)
-        self.pool_xt_1 = nn.MaxPool1d(2,ceil_mode=True)
-        self.conv_xt_2 = nn.Conv1d(in_channels=n_filters, out_channels=n_filters*2, kernel_size=8)
-        self.pool_xt_2 = nn.MaxPool1d(2,ceil_mode=True)
-        self.conv_xt_3 = nn.Conv1d(in_channels=n_filters*2, out_channels=n_filters*4, kernel_size=8)
-        self.pool_xt_3 = nn.MaxPool1d(2,ceil_mode=True)
-        self.fc_xt = nn.Linear(10*128, 128)
-        
-        #cross-attention
-        self.drug_protein_attention = nn.MultiheadAttention(embed_dim=128, num_heads=8, dropout=dropout)
-        self.protein_drug_attention = nn.MultiheadAttention(embed_dim=128, num_heads=8, dropout=dropout)
-        
+        nn_p3 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv_prot3 = GINConv(nn_p3)
+        self.bn_prot3 = nn.BatchNorm1d(dim)
+
+        nn_p4 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv_prot4 = GINConv(nn_p4)
+        self.bn_prot4 = nn.BatchNorm1d(dim)
+
+        nn_p5 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        self.conv_prot5 = GINConv(nn_p5)
+        self.bn_prot5 = nn.BatchNorm1d(dim)
+
+        self.fc_prot_g1 = nn.Linear(dim, 256)
+        self.fc_prot_g2 = nn.Linear(256, output_dim)
+
+        # Protein ESM-2: concatenate max/mean pooling, then project 1280 -> 128.
+        self.fc_protein_embedding = nn.Linear(2 * protein_embedding_dim, 128)
+        self.bn_protein_embedding = nn.BatchNorm1d(128)
+
         #concat
         self.fc_xd = nn.Linear(256,128)
         self.fc_xp = nn.Linear(256,128)
 
-        self.fc1 = nn.Linear(128*2, 1024)
-        self.fc2 = nn.Linear(1024, 256)
-        self.out = nn.Linear(256, n_output)
+        # Small prediction head: 256 -> 512 -> 128 -> affinity.
+        self.fc1 = nn.Linear(256, 512)
+        self.fc2 = nn.Linear(512, 128)
+        self.out = nn.Linear(128, n_output)
 
         # activation and regularization
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, data_drug,data_protein):
+    def forward(self, pair_indices):
+        # Look up all four sources on the GPU at the start of each forward pass.
+        data_drug, data_protein = self.data_store.lookup(pair_indices)
         # graph input feed-forward
         x_drug, edge_index_drug, batch_drug = data_drug.x, data_drug.edge_index, data_drug.batch
 
-        x_drug = F.relu(self.conv1(x_drug, edge_index_drug))
-        x_drug = self.bn1(x_drug)
-        x_drug = F.relu(self.conv2(x_drug, edge_index_drug))
-        x_drug = self.bn2(x_drug)
-        x_drug = F.relu(self.conv3(x_drug, edge_index_drug))
-        x_drug = self.bn3(x_drug)
-        x_drug = F.relu(self.conv4(x_drug, edge_index_drug))
-        x_drug = self.bn4(x_drug)
-        x_drug = F.relu(self.conv5(x_drug, edge_index_drug))
-        x_drug = self.bn5(x_drug)
+        # Ligand graph: GAT -> ReLU -> GCN -> ReLU.
+        x_drug = self.conv1(x_drug, edge_index_drug)
+        x_drug = self.relu(x_drug)
+        x_drug = self.conv2(x_drug, edge_index_drug)
+        x_drug = self.relu(x_drug)
+        # apply global max pooling (gmp) and global mean pooling (gap)
         x_drug = torch.cat([gmp(x_drug, batch_drug), gap(x_drug, batch_drug)], dim=1)
-        x_drug = F.relu(self.fc1_xd(x_drug))
-        x_drug = F.dropout(x_drug, p=0.2, training=self.training)
-        #ecfp
-        x_drug_ecfp = data_drug.ecfp
-        x_drug_ecfp = self.fc_ecfp(x_drug_ecfp)
-        x_drug_ecfp = self.bn_ecfp(x_drug_ecfp)     
-        x_drug_ecfp = self.relu(x_drug_ecfp)
-        x_drug_ecfp = self.dropout(x_drug_ecfp)
-        
+        x_drug = self.relu(self.fc_g1(x_drug))
+        x_drug = self.dropout(x_drug)
+        x_drug = self.fc_g2(x_drug)
+
+        # Tokens are concatenated; drug_embedding_batch identifies their samples.
+        # The bank preserves raw tokens; max pooling happens only here.
+        x_drug_embedding = gmp(data_drug.drug_embedding, data_drug.drug_embedding_batch)
+        x_drug_embedding = self.fc_drug_embedding(x_drug_embedding)
+        # BatchNorm needs >=2 training samples; use running statistics for a singleton batch.
+        if self.training and x_drug_embedding.size(0) == 1:
+            x_drug_embedding = F.batch_norm(
+                x_drug_embedding, self.bn_drug_embedding.running_mean,
+                self.bn_drug_embedding.running_var, self.bn_drug_embedding.weight,
+                self.bn_drug_embedding.bias, training=False, eps=self.bn_drug_embedding.eps)
+        else:
+            x_drug_embedding = self.bn_drug_embedding(x_drug_embedding)
+        x_drug_embedding = self.relu(x_drug_embedding)
+        x_drug_embedding = self.dropout(x_drug_embedding)
+
         # protein input feed-forward:
         x_prots, edge_index_prots, prots_batch= data_protein.x, data_protein.edge_index, data_protein.batch
-        #3D process 
-        x_prots = F.dropout(x_prots, p=0.2, training=self.training)
-        x_prots = self.relu(self.conv_prot1(x_prots,edge_index_prots))
-        x_prots = F.dropout(x_prots, p=0.2, training=self.training)
-        x_prots = self.relu(self.conv_prot2(x_prots,edge_index_prots))
-        x_prots = gmp(x_prots, prots_batch)
-        x_prots = self.lin1(x_prots)
-        x_prots = self.relu(x_prots)
-        #1D process
-        prot_seq = data_drug.protein_seq
-        embedded_x_seq = self.embedding_xt(prot_seq)
-        x_prots_seq = self.conv_xt_1(embedded_x_seq)
-        x_prots_seq = F.relu(x_prots_seq)
-        x_prots_seq = self.pool_xt_1(x_prots_seq)
-        x_prots_seq = self.conv_xt_2(x_prots_seq)
-        x_prots_seq = F.relu(x_prots_seq)
-        x_prots_seq = self.pool_xt_2(x_prots_seq)
-        x_prots_seq = self.conv_xt_3(x_prots_seq)
-        x_prots_seq = F.relu(x_prots_seq)
-        x_prots_seq = self.pool_xt_3(x_prots_seq)
+        # Protein graph: five GIN layers, each followed by ReLU and BatchNorm.
+        x_prots = self.bn_prot1(self.relu(self.conv_prot1(x_prots, edge_index_prots)))
+        x_prots = self.bn_prot2(self.relu(self.conv_prot2(x_prots, edge_index_prots)))
+        x_prots = self.bn_prot3(self.relu(self.conv_prot3(x_prots, edge_index_prots)))
+        x_prots = self.bn_prot4(self.relu(self.conv_prot4(x_prots, edge_index_prots)))
+        x_prots = self.bn_prot5(self.relu(self.conv_prot5(x_prots, edge_index_prots)))
+        x_prots = global_add_pool(x_prots, prots_batch)
+        x_prots = self.relu(self.fc_prot_g1(x_prots))
+        x_prots = self.dropout(x_prots)
+        x_prots = self.fc_prot_g2(x_prots)
 
-        # flatten
-        x_prots_seq = x_prots_seq.view(-1, 10 * 128)
-        x_prots_seq = self.fc_xt(x_prots_seq)
+        # Pool tokens per sample using protein_embedding_batch, not the graph node batch.
+        # Concatenation order: [max (640), mean (640)] -> [B,1280].
+        x_protein_embedding = torch.cat([
+            gmp(data_protein.protein_embedding, data_protein.protein_embedding_batch),
+            gap(data_protein.protein_embedding, data_protein.protein_embedding_batch),
+        ], dim=1)
+        x_protein_embedding = self.fc_protein_embedding(x_protein_embedding)
+        if self.training and x_protein_embedding.size(0) == 1:
+            x_protein_embedding = F.batch_norm(
+                x_protein_embedding, self.bn_protein_embedding.running_mean,
+                self.bn_protein_embedding.running_var, self.bn_protein_embedding.weight,
+                self.bn_protein_embedding.bias, training=False, eps=self.bn_protein_embedding.eps)
+        else:
+            x_protein_embedding = self.bn_protein_embedding(x_protein_embedding)
+        x_protein_embedding = self.relu(x_protein_embedding)
+        x_protein_embedding = self.dropout(x_protein_embedding)
 
-        #cross-attention
-        x_drug = x_drug.unsqueeze(0)  
-        x_prots = x_prots.unsqueeze(0)  
-        
-        # Drug to protein attention
-        x_drug_attended, _ = self.drug_protein_attention(x_drug, x_prots, x_prots)
-        x_drug_attended = x_drug_attended.squeeze(0)  
-        
-        # Protein to drug attention
-        x_prots_attended, _ = self.protein_drug_attention(x_prots, x_drug, x_drug)
-        x_prots_attended = x_prots_attended.squeeze(0)  
+        # Ablation: concatenate graph features directly, without cross-attention or residuals.
+        xd = torch.cat((x_drug, x_drug_embedding), dim=1)       # [B,256]
+        xp = torch.cat((x_prots, x_protein_embedding), dim=1)  # [B,256]
+        xd = self.relu(self.fc_xd(xd))
+        xp = self.relu(self.fc_xp(xp))
 
-        # concat
-        xd = torch.cat((x_drug_attended,x_drug_ecfp),1)
-        xp = torch.cat((x_prots_attended,x_prots_seq),1)
-        xd = self.fc_xd(xd)
-        xd = self.relu(xd)
-        xp = self.fc_xp(xp)
-        xp = self.relu(xp)
-        
         xc = torch.cat((xd,xp), 1)
-        #dense layers
+        # Apply ReLU/Dropout after each hidden layer; the output layer is linear.
         xc = self.fc1(xc)
         xc = self.relu(xc)
         xc = self.dropout(xc)
